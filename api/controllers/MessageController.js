@@ -1,0 +1,83 @@
+const Message = require("../models/Message");
+const Conversation = require("../models/Conversation");
+
+module.exports = {
+
+    // Send Message
+    sendMessage: async (req, res) => {
+        try {
+            const { conversationId, senderId, text } = req.body;
+
+            if (!conversationId || !senderId || !text) {
+                return res.status(400).json({ message: "conversationId, senderUid and text are required" });
+            }
+
+            // Make sure conversation exists
+            const conversation = await Conversation.findById(conversationId);
+            if (!conversation) {
+                return res.status(404).json({ message: "Conversation not found" });
+            }
+
+            // Create message
+            const message = new Message({
+                conversationId,
+                senderId,
+                text
+            });
+
+            await message.save();
+
+            // Update last message info in conversation
+            conversation.lastMessage = text;
+            conversation.lastUpdated = new Date();
+            await conversation.save();
+
+            return res.status(201).json({
+                message: "Message sent successfully",
+                data: message
+            });
+
+        } catch (error) {
+            console.error("sendMessage error:", error);
+            res.status(500).json({ message: "Server error" });
+        }
+    },
+
+
+    // Get Messages of Conversation
+    getMessagesByConversation: async (req, res) => {
+        try {
+            const { conversationId } = req.params;
+
+            const messages = await Message.find({ conversationId })
+                .sort({ createdAt: 1 });
+
+            return res.status(200).json(messages);
+
+        } catch (error) {
+            console.error("getMessagesByConversation error:", error);
+            res.status(500).json({ message: "Server error" });
+        }
+    },
+
+
+    // Delete Message
+    deleteMessage: async (req, res) => {
+        try {
+            const { messageId } = req.params;
+
+            const deleted = await Message.findByIdAndDelete(messageId);
+
+            if (!deleted) {
+                return res.status(404).json({ message: "Message not found" });
+            }
+
+            return res.status(200).json({ message: "Message deleted successfully" });
+
+        } catch (error) {
+            console.error("deleteMessage error:", error);
+            res.status(500).json({ message: "Server error" });
+        }
+    }
+
+};
