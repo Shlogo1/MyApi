@@ -1,5 +1,21 @@
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
+const UserSocial = require("../models/Users");
+
+async function addContactsFromConversation(conversation, senderId) {
+    if (!conversation || !senderId || !conversation.members) return;
+    // For 1-1 chats: add the other participant. For group chats: add all.
+    const otherIds = conversation.members
+        .map(m => m.toString())
+        .filter(id => id !== senderId.toString());
+
+    await Promise.all(
+        otherIds.map(otherId => Promise.all([
+            UserSocial.updateOne({ _id: senderId }, { $addToSet: { contacts: otherId } }),
+            UserSocial.updateOne({ _id: otherId }, { $addToSet: { contacts: senderId } })
+        ]))
+    );
+}
 
 module.exports = {
 
@@ -9,7 +25,7 @@ module.exports = {
             const { conversationId, senderId, text } = req.body;
 
             if (!conversationId || !senderId || !text) {
-                return res.status(400).json({ message: "conversationId, senderUid and text are required" });
+                return res.status(400).json({ message: "conversationId, senderId and text are required" });
             }
 
             // Make sure conversation exists
@@ -27,10 +43,26 @@ module.exports = {
 
             await message.save();
 
+            // Make sure sender and receiver appear as contacts
+            await addContactsFromConversation(conversation, senderId);
+
             // Update last message info in conversation
             conversation.lastMessage = text;
             conversation.lastUpdated = new Date();
             await conversation.save();
+
+            // Realtime: emit to all clients in this conversation room
+            // (clients join room named by conversationId)
+            const io = req.app.get('io');
+            if (io) {
+                io.to(conversationId.toString()).emit('new_message', {
+                    _id: message._id,
+                    conversationId: conversationId,
+                    senderId: senderId,
+                    text: text,
+                    createdAt: message.createdAt
+                });
+            }
 
             return res.status(201).json({
                 message: "Message sent successfully",

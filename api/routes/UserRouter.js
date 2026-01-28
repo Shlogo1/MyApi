@@ -1,15 +1,25 @@
 const express = require("express");
 const router = express.Router();
 
-const { registerOrSyncUser,getAllUsers,getUserByUid} = require("../controllers/UsersController");
+// NOTE: controller file name is UsersController.js
+const UserController = require("../controllers/UsersController");
 
-// Register or Sync Firebase User
-router.post("/register", registerOrSyncUser);
+// create or update user (sync)
+router.post("/sync", UserController.registerOrSyncUser);
 
-// Get all users
-router.get("/", getAllUsers);
+// get by firebase uid
+router.get("/byFirebaseUid/:firebaseUid", UserController.getByFirebaseUid);
 
-// Get user by firebase UID
-router.get("/:firebaseUid", getUserByUid);
+// get by mongo id
+router.get("/id/:id", UserController.getById);
+
+// search by email
+router.get("/search", UserController.searchByEmail);
+
+// contacts (friends) with last message preview
+router.get("/contacts/:userId", UserController.getContactsWithLastMessage);
+
+// optional - all users
+router.get("/", UserController.getAllUsers);
 
 module.exports = router;
