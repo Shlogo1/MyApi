@@ -17,7 +17,11 @@ const userSchema = new mongoose.Schema({
   profileImage:{
     type: String,
     default: ""
-  }
+  },
+  contacts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "UserSocial"
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model("UserSocial", userSchema);
