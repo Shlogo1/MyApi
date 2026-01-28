@@ -1,70 +1,64 @@
-const User = require("../models/Users");
+const User = require("../models/Users"); // אצלך המודל נקרא UserSocial אבל מיוצא מהקובץ Users.js
 
 module.exports = {
-    // Create or Sync Firebase User
-    registerOrSyncUser: async (req, res) => {
-        try {
-            const { firebaseUid, email, displayName, profileImage } = req.body;
+  // POST /users/sync
+  registerOrSyncUser: async (req, res) => {
+    try {
+      const { firebaseUid, email, displayName, profileImage } = req.body;
 
-            if (!firebaseUid) {
-                return res.status(400).json({ message: "firebaseUid is required" });
-            }
+      if (!firebaseUid) {
+        return res.status(400).json({ message: "firebaseUid is required" });
+      }
 
-            // Check if user exists
-            let user = await User.findOne({ firebaseUid });
+      let user = await User.findOne({ firebaseUid });
 
-            // If not exists → create new
-            if (!user) {
-                user = new User({
-                    firebaseUid,
-                    email: email || "",
-                    displayName: displayName || "",
-                    profileImage: profileImage || ""
-                });
+      if (!user) {
+        user = await User.create({
+          firebaseUid,
+          email: email || "",
+          displayName: displayName || "",
+          profileImage: profileImage || "",
+        });
+      } else {
+        // אופציונלי: עדכון שדות אם הגיעו חדשים
+        user.email = email ?? user.email;
+        user.displayName = displayName ?? user.displayName;
+        user.profileImage = profileImage ?? user.profileImage;
+        await user.save();
+      }
 
-                await user.save();
-            }
-
-            return res.status(200).json({
-                message: "User synced successfully",
-                user
-            });
-
-        } catch (error) {
-            console.error("registerOrSyncUser error:", error);
-            res.status(500).json({ message: "Server error" });
-        }
-    },
-
-
-    // Get all users
-    getAllUsers: async (req, res) => {
-        try {
-            const users = await User.find().select("-__v");
-            res.status(200).json(users);
-        } catch (error) {
-            console.error("getAllUsers error:", error);
-            res.status(500).json({ message: "Server error" });
-        }
-    },
-
-
-    // Get user by Firebase UID
-    getUserByUid: async (req, res) => {
-        try {
-            const { firebaseUid } = req.params;
-
-            const user = await User.findOne({ firebaseUid });
-
-            if (!user) {
-                return res.status(404).json({ message: "User not found" });
-            }
-
-            res.status(200).json(user);
-
-        } catch (error) {
-            console.error("getUserByUid error:", error);
-            res.status(500).json({ message: "Server error" });
-        }
+      return res.status(200).json(user);
+    } catch (e) {
+      console.error("registerOrSyncUser error:", e);
+      return res.status(500).json({ message: "Server error" });
     }
-}
+  },
+
+  // GET /users/byFirebaseUid/:firebaseUid
+  getByFirebaseUid: async (req, res) => {
+    try {
+      const { firebaseUid } = req.params;
+
+      const user = await User.findOne({ firebaseUid }).select("-__v");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      return res.status(200).json(user);
+    } catch (e) {
+      console.error("getByFirebaseUid error:", e);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+
+  // GET /users
+  getAllUsers: async (req, res) => {
+    try {
+      const users = await User.find().select("-__v");
+      return res.status(200).json(users);
+    } catch (e) {
+      console.error("getAllUsers error:", e);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+};
