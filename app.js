@@ -40,4 +40,12 @@ app.use("/conversation",ConversationRouter);
 const MessageRouter = require('./api/routes/MessageRouter');
 app.use("/message",MessageRouter);
 
+app.get('/', (req, res) => {
+  res.send('API is running')
+})
+
+app.get('/health', (req, res) => {
+  res.send('API is running')
+})
+
 module.exports = app;
