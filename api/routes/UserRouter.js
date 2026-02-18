@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
-
-// NOTE: controller file name is UsersController.js
-const UserController = require("../controllers/UsersController");
+// ודא שהשם כאן הוא userController
+const userController = require("../controllers/UserController");
 
 // create or update user (sync)
 router.post("/sync", UserController.registerOrSyncUser);
