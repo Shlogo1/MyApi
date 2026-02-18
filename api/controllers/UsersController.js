@@ -1,5 +1,6 @@
-const User = require("../models/Users"); // אצלך המודל נקרא UserSocial אבל מיוצא מהקובץ Users.js
+const User = require("../models/Users"); 
 const Conversation = require("../models/Conversation");
+const mongoose = require("mongoose"); // הוספתי את זה בשביל בדיקות ID
 
 module.exports = {
   // POST /users/sync
@@ -21,7 +22,6 @@ module.exports = {
           profileImage: profileImage || "",
         });
       } else {
-        // אופציונלי: עדכון שדות אם הגיעו חדשים
         user.email = email ?? user.email;
         user.displayName = displayName ?? user.displayName;
         user.profileImage = profileImage ?? user.profileImage;
@@ -52,10 +52,37 @@ module.exports = {
     }
   },
 
-  // GET /users
+  // GET /users?viewerId=...
+  // הנה הפונקציה המעודכנת שתסדר לך את הריפרש
   getAllUsers: async (req, res) => {
     try {
-      const users = await User.find().select("-__v");
+      const { viewerId } = req.query; // האנדרואיד ישלח את ה-ID שלך כאן
+      
+      let users = await User.find().select("-__v").lean();
+
+      if (viewerId && mongoose.Types.ObjectId.isValid(viewerId)) {
+        // מחפשים את כל השיחות שהמשתמש הנוכחי משתתף בהן
+        const conversations = await Conversation.find({
+          members: { $in: [viewerId] }
+        }).select("members lastUpdated").lean();
+
+        // יוצרים מפה של: מי המשתמש -> מתי דיברנו איתו לאחרונה
+        const lastUpdateMap = {};
+        conversations.forEach(c => {
+          const otherMember = c.members.find(m => m.toString() !== viewerId.toString());
+          if (otherMember) {
+            lastUpdateMap[otherMember.toString()] = c.lastUpdated;
+          }
+        });
+
+        // ממיינים את המשתמשים לפי תאריך השיחה
+        users.sort((a, b) => {
+          const dateA = lastUpdateMap[a._id.toString()] ? new Date(lastUpdateMap[a._id.toString()]) : new Date(0);
+          const dateB = lastUpdateMap[b._id.toString()] ? new Date(lastUpdateMap[b._id.toString()]) : new Date(0);
+          return dateB - dateA; // הכי חדש למעלה
+        });
+      }
+
       return res.status(200).json(users);
     } catch (e) {
       console.error("getAllUsers error:", e);
@@ -92,7 +119,6 @@ module.exports = {
   },
 
   // GET /users/contacts/:userId
-  // Returns contacts list (friends) with lastMessage + conversationId (if exists)
   getContactsWithLastMessage: async (req, res) => {
     try {
       const { userId } = req.params;
@@ -101,9 +127,6 @@ module.exports = {
 
       const contactIds = new Set((me.contacts || []).map(x => x.toString()));
 
-      // Fetch conversations of this user (1-1 only)
-      // We also use these conversations to "auto-discover" contacts for users created before
-      // the contacts feature existed.
       const convos = await Conversation.find({
         members: { $in: [userId] },
         $expr: { $eq: [{ $size: "$members" }, 2] }
@@ -114,7 +137,6 @@ module.exports = {
         if (other) contactIds.add(other);
       }
 
-      // Fetch users
       const contacts = await User.find({ _id: { $in: Array.from(contactIds) } }).select("-__v");
 
       const convoByOther = new Map();
@@ -134,7 +156,6 @@ module.exports = {
         };
       });
 
-      // Sort by lastUpdated desc (nulls last)
       result.sort((a, b) => {
         const ta = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
         const tb = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
