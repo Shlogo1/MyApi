@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
-// אנחנו מייבאים את הקונטרולר ומגדירים אותו תחת השם userController
-const userController = require("../controllers/UserController");
+
+// שינוי קריטי: הוספתי את ה-s לשם הקובץ כדי שיתאים לתמונה שלך
+const userController = require("../controllers/UsersController");
 
 // create or update user (sync)
 router.post("/sync", userController.registerOrSyncUser);
