@@ -1,24 +1,28 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
-  firebaseUid:{
+  firebaseUid: {
     type: String,
     required: true,
     unique: true
   },
-  email:{
+  email: {
     type: String,
     default: ""
   },
-  displayName:{
+  displayName: {
     type: String,
     default: ""
   },
-  profileImage:{
+  profileImage: {
     type: String,
     default: ""
   },
   contacts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "UserSocial"
+  }],
+  blockedUsers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "UserSocial"
   }]

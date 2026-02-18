@@ -22,4 +22,6 @@ router.get("/contacts/:userId", UserController.getContactsWithLastMessage);
 // optional - all users
 router.get("/", UserController.getAllUsers);
 
+router.post("/block", userController.blockUser);
+
 module.exports = router;
