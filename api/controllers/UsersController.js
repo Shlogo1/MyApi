@@ -56,39 +56,39 @@ module.exports = {
   // הנה הפונקציה המעודכנת שתסדר לך את הריפרש
   getAllUsers: async (req, res) => {
     try {
-      const { viewerId } = req.query; // האנדרואיד ישלח את ה-ID שלך כאן
-      
-      let users = await User.find().select("-__v").lean();
+        const { viewerId } = req.query; // ה-ID של המשתמש שצופה ברשימה כרגע
+        
+        let users = await User.find().select("-__v").lean();
 
-      if (viewerId && mongoose.Types.ObjectId.isValid(viewerId)) {
-        // מחפשים את כל השיחות שהמשתמש הנוכחי משתתף בהן
-        const conversations = await Conversation.find({
-          members: { $in: [viewerId] }
-        }).select("members lastUpdated").lean();
+        if (viewerId && mongoose.Types.ObjectId.isValid(viewerId)) {
+            // מוצאים את כל השיחות שהמשתמש הזה משתתף בהן (שולח או מקבל)
+            const conversations = await Conversation.find({
+                members: { $in: [viewerId] }
+            }).select("members lastUpdated").lean();
 
-        // יוצרים מפה של: מי המשתמש -> מתי דיברנו איתו לאחרונה
-        const lastUpdateMap = {};
-        conversations.forEach(c => {
-          const otherMember = c.members.find(m => m.toString() !== viewerId.toString());
-          if (otherMember) {
-            lastUpdateMap[otherMember.toString()] = c.lastUpdated;
-          }
-        });
+            // יוצרים מפה של: איזה משתמש קשור לאיזה תאריך עדכון אחרון
+            const lastUpdateMap = {};
+            conversations.forEach(c => {
+                const otherMember = c.members.find(m => m.toString() !== viewerId.toString());
+                if (otherMember) {
+                    lastUpdateMap[otherMember.toString()] = c.lastUpdated;
+                }
+            });
 
-        // ממיינים את המשתמשים לפי תאריך השיחה
-        users.sort((a, b) => {
-          const dateA = lastUpdateMap[a._id.toString()] ? new Date(lastUpdateMap[a._id.toString()]) : new Date(0);
-          const dateB = lastUpdateMap[b._id.toString()] ? new Date(lastUpdateMap[b._id.toString()]) : new Date(0);
-          return dateB - dateA; // הכי חדש למעלה
-        });
-      }
+            // מיון: מי שדיברנו איתו לאחרונה יהיה למעלה
+            users.sort((a, b) => {
+                const dateA = lastUpdateMap[a._id.toString()] ? new Date(lastUpdateMap[a._id.toString()]) : new Date(0);
+                const dateB = lastUpdateMap[b._id.toString()] ? new Date(lastUpdateMap[b._id.toString()]) : new Date(0);
+                return dateB - dateA;
+            });
+        }
 
-      return res.status(200).json(users);
+        return res.status(200).json(users);
     } catch (e) {
-      console.error("getAllUsers error:", e);
-      return res.status(500).json({ message: "Server error" });
+        console.error("getAllUsers error:", e);
+        return res.status(500).json({ message: "Server error" });
     }
-  },
+},
 
   // GET /users/id/:id
   getById: async (req, res) => {
