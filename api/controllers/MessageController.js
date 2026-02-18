@@ -20,83 +20,59 @@ module.exports = {
 
     // Send Message - הגרסה המאובטחת עם חסימה
     sendMessage: async (req, res) => {
-        try {
-            const { conversationId, senderId, text } = req.body;
+    try {
+        const { conversationId, senderId, text } = req.body;
 
-            if (!conversationId || !senderId || !text) {
-                return res.status(400).json({ message: "conversationId, senderId and text are required" });
-            }
+        if (!conversationId || !senderId || !text) {
+            return res.status(400).json({ message: "Missing fields" });
+        }
 
-            // 1. מציאת השיחה ובדיקה שהיא קיימת
-            const conversation = await Conversation.findById(conversationId);
-            if (!conversation) {
-                return res.status(404).json({ message: "Conversation not found" });
-            }
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation) return res.status(404).json({ message: "Conversation not found" });
 
-            // 2. זיהוי הנמען (המשתתף השני בשיחה)
-            const receiverId = conversation.members.find(m => m.toString() !== senderId.toString());
+        // 1. מציאת הנמען - שימוש ב-toString() כדי למנוע בעיות השוואה
+        const receiverId = conversation.members.find(m => m.toString() !== senderId.toString());
 
-            // 3. בדיקת חסימה דו-צדדית
+        if (receiverId) {
+            // 2. בדיקת חסימה - רק אם הנמען קיים
             const [sender, receiver] = await Promise.all([
-                UserSocial.findById(senderId),
-                UserSocial.findById(receiverId)
+                UserSocial.findById(senderId).lean(),
+                UserSocial.findById(receiverId).lean()
             ]);
 
-            if (!sender || !receiver) {
-                return res.status(404).json({ message: "User not found" });
+            // בדיקת בטיחות: האם המשתמשים קיימים והאם יש להם מערך חסומים
+            const iBlocked = sender?.blockedUsers?.some(id => id.toString() === receiverId.toString());
+            const heBlocked = receiver?.blockedUsers?.some(id => id.toString() === senderId.toString());
+
+            if (iBlocked || heBlocked) {
+                return res.status(403).json({ message: "Blocked", isBlocked: true });
             }
-
-            // האם אני חסמתי אותו? או האם הוא חסם אותי?
-            const iBlockedHim = sender.blockedUsers && sender.blockedUsers.includes(receiverId);
-            const heBlockedMe = receiver.blockedUsers && receiver.blockedUsers.includes(senderId);
-
-            if (iBlockedHim || heBlockedMe) {
-                // מחזירים 403 - האפליקציה תדע לנעול את הממשק
-                return res.status(403).json({ 
-                    message: "Action forbidden: One of the users is blocked",
-                    isBlocked: true 
-                });
-            }
-
-            // 4. אם לא חסום - ממשיכים כרגיל ביצירת ההודעה
-            const message = new Message({
-                conversationId,
-                senderId,
-                text
-            });
-
-            await message.save();
-
-            // הוספה לאנשי קשר
-            await addContactsFromConversation(conversation, senderId);
-
-            // עדכון השיחה
-            conversation.lastMessage = text;
-            conversation.lastUpdated = new Date();
-            await conversation.save();
-
-            // שליחה ב-Realtime דרך Socket.io
-            const io = req.app.get('io');
-            if (io) {
-                io.to(conversationId.toString()).emit('new_message', {
-                    _id: message._id,
-                    conversationId: conversationId,
-                    senderId: senderId,
-                    text: text,
-                    createdAt: message.createdAt
-                });
-            }
-
-            return res.status(201).json({
-                message: "Message sent successfully",
-                data: message
-            });
-
-        } catch (error) {
-            console.error("sendMessage error:", error);
-            res.status(500).json({ message: "Server error" });
         }
-    },
+
+        // 3. יצירת ההודעה (רק אם לא חסום)
+        const message = new Message({ conversationId, senderId, text });
+        await message.save();
+
+        // עדכון אנשי קשר ושיחה (אופציונלי - לא מעכב את התשובה)
+        addContactsFromConversation(conversation, senderId).catch(console.error);
+        
+        conversation.lastMessage = text;
+        conversation.lastUpdated = new Date();
+        await conversation.save();
+
+        // 4. שליחה ב-Socket.io
+        const io = req.app.get('io');
+        if (io) {
+            io.to(conversationId.toString()).emit('new_message', message);
+        }
+
+        return res.status(201).json({ message: "Success", data: message });
+
+    } catch (error) {
+        console.error("sendMessage error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+},
 
     // שאר הפונקציות נשארות ללא שינוי...
     getMessagesByConversation: async (req, res) => { /* ... */ },
