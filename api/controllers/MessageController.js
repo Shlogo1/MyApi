@@ -30,9 +30,28 @@ module.exports = {
 
             // Make sure conversation exists
             const conversation = await Conversation.findById(conversationId);
-            if (!conversation) {
-                return res.status(404).json({ message: "Conversation not found" });
-            }
+            // ... אחרי ה-findById של ה-conversation
+if (!conversation) {
+    return res.status(404).json({ message: "Conversation not found" });
+}
+
+// --- הוסף רק את זה ---
+const receiverId = conversation.members.find(m => m.toString() !== senderId.toString());
+const [sender, receiver] = await Promise.all([
+    UserSocial.findById(senderId),
+    UserSocial.findById(receiverId)
+]);
+
+// בדיקה בטוחה שלא מפילה את השרת
+const isBlocked = (sender?.blockedUsers?.map(id => id.toString()).includes(receiverId?.toString())) ||
+                  (receiver?.blockedUsers?.map(id => id.toString()).includes(senderId?.toString()));
+
+if (isBlocked) {
+    return res.status(403).json({ message: "Blocked" });
+}
+// -----------------------
+
+// ... כאן ממשיך הקוד המקורי שלך (Create message וכו')
 
             // Create message
             const message = new Message({
