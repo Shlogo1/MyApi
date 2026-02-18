@@ -25,4 +25,6 @@ router.get("/", userController.getAllUsers);
 // block user
 router.post("/block", userController.blockUser);
 
+router.post("/unblock", userController.unblockUser);
+
 module.exports = router;

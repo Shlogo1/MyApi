@@ -51,15 +51,20 @@ module.exports = {
             const { viewerId } = req.query; 
             let users = await User.find().select("-__v").lean();
 
+            let blockedIds = [];
             if (viewerId && mongoose.Types.ObjectId.isValid(viewerId)) {
-                // 1. סינון חסומים: המשתמש לא יראה את מי שהוא חסם
                 const me = await User.findById(viewerId).select("blockedUsers").lean();
                 if (me && me.blockedUsers) {
-                    const blockedIds = me.blockedUsers.map(id => id.toString());
-                    users = users.filter(u => !blockedIds.includes(u._id.toString()));
+                    blockedIds = me.blockedUsers.map(id => id.toString());
                 }
 
-                // 2. מיון לפי שיחה אחרונה (הלוגיקה של ה-Refresh)
+                // סימון משתמשים כחסומים במקום למחוק אותם
+                users = users.map(u => ({
+                    ...u,
+                    isBlocked: blockedIds.includes(u._id.toString())
+                }));
+
+                // מיון לפי שיחה אחרונה (Refresh logic)
                 const conversations = await Conversation.find({
                     members: { $in: [viewerId] }
                 }).select("members lastUpdated").lean();
@@ -75,12 +80,25 @@ module.exports = {
                 users.sort((a, b) => {
                     const dateA = lastUpdateMap[a._id.toString()] ? new Date(lastUpdateMap[a._id.toString()]) : new Date(0);
                     const dateB = lastUpdateMap[b._id.toString()] ? new Date(lastUpdateMap[b._id.toString()]) : new Date(0);
-                    return dateB - dateA; // החדש ביותר למעלה
+                    return dateB - dateA;
                 });
             }
             return res.status(200).json(users);
         } catch (e) {
             console.error("getAllUsers error:", e);
+            return res.status(500).json({ message: "Server error" });
+        }
+    },
+
+    // פונקציית ביטול חסימה חדשה
+    unblockUser: async (req, res) => {
+        try {
+            const { userId, blockId } = req.body; // נשתמש באותם שמות שדות לנוחות
+            await User.findByIdAndUpdate(userId, {
+                $pull: { blockedUsers: blockId }
+            });
+            return res.status(200).json({ message: "Unblocked successfully" });
+        } catch (e) {
             return res.status(500).json({ message: "Server error" });
         }
     },
