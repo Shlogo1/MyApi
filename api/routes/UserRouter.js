@@ -22,4 +22,14 @@ router.get("/contacts/:userId", UserController.getContactsWithLastMessage);
 // optional - all users
 router.get("/", UserController.getAllUsers);
 
+router.post("/update-time/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        // מעדכן רק את התאריך בשיחה הקיימת
+        await Conversation.findByIdAndUpdate(id, { lastUpdated: new Date() });
+        res.status(200).send("Updated");
+    } catch (e) {
+        res.status(500).send(e);
+    }
+});
 module.exports = router;
