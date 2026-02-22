@@ -18,9 +18,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
-  lastUpdated: {
-    type: Date
-  },
   contacts: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "UserSocial"
