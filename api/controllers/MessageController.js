@@ -50,6 +50,14 @@ module.exports = {
             conversation.lastMessage = text;
             conversation.lastUpdated = new Date();
             await conversation.save();
+            const now = new Date();
+
+            await Promise.all([
+                UserSocial.updateMany(
+                    { _id: { $in: conversation.members } },
+                    { $set: { lastUpdated: now } }
+                )
+            ]);
 
             // Realtime: emit to all clients in this conversation room
             // (clients join room named by conversationId)
