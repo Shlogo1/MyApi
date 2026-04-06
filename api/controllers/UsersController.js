@@ -1,6 +1,6 @@
 const User = require("../models/Users"); 
 const Conversation = require("../models/Conversation");
-const mongoose = require("mongoose"); // הוספתי את זה בשביל בדיקות ID
+const mongoose = require("mongoose");
 
 module.exports = {
   // POST /users/sync
